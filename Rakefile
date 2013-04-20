@@ -158,3 +158,56 @@ namespace :pdf do
                 system("ruby makepdfs")
         end
 end
+
+namespace :html do
+  GH_PAGES_BRANCH = "gh-pages"
+  GH_PAGES_INDEX = "index.html"
+  EBOOK_NAME = "rt_thread_manual"
+  EBOOK_LANG = "zh"
+  EBOOK_FMT = "html"
+  EBOOK_FILE = "#{EBOOK_NAME}.#{EBOOK_LANG}.#{EBOOK_FMT}"
+  OLD_BRANCH = `git rev-parse --abbrev-ref HEAD`.chomp
+
+  def exec_cmds(cmds)
+    cmds.split("\n").each { |line| sh line }
+  end
+
+  desc "create #{GH_PAGES_BRANCH} branch"
+  task :branch do
+    unless `git branch`.include? GH_PAGES_BRANCH then
+      GH_PAGES_FILES = "stylesheets figures Rakefile"
+
+CR_BR_CMD=<<CMD
+git checkout --orphan #{GH_PAGES_BRANCH}
+git rm . -rfq
+touch #{GH_PAGES_INDEX}
+git checkout #{OLD_BRANCH} -- #{GH_PAGES_FILES}
+git add #{GH_PAGES_INDEX}
+git commit -a -m "Create Github pages branch"
+git checkout #{OLD_BRANCH}
+CMD
+
+      exec_cmds CR_BR_CMD
+    end
+  end
+
+  file EBOOK_FILE do
+    exec_cmds "./mkbok -b #{EBOOK_FMT} -n #{EBOOK_NAME} -l #{EBOOK_LANG}"
+  end
+
+  desc "generate html"
+  task :generate => [EBOOK_FILE]
+
+  desc "publish html to Github pages"
+  task :publish => [:generate, :branch] do
+
+PUB_CMD=<<CMD
+git checkout #{GH_PAGES_BRANCH}
+mv #{EBOOK_FILE} #{GH_PAGES_INDEX}
+git diff --quiet || git commit -a -u -m "Update pages"
+git checkout #{OLD_BRANCH}
+CMD
+
+    exec_cmds PUB_CMD
+  end
+end
